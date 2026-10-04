@@ -11,6 +11,7 @@
 export { Composer } from './compose/composer.ts'
 
 export { Document, type DocValue } from './doc/Document.ts'
+export type { CloneSubtreeOptions } from './doc/cloneSubtree.ts'
 export { Schema } from './schema/Schema.ts'
 
 export { YAMLError, YAMLParseError, YAMLWarning } from './errors.ts'

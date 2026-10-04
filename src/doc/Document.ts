@@ -21,6 +21,7 @@ import { MergeKey } from '../schema/yaml-1.1/merge.ts'
 import { stringifyDocument } from '../stringify/stringifyDocument.ts'
 import { anchorNames, findNewAnchor } from './anchors.ts'
 import { applyReviver } from './applyReviver.ts'
+import { cloneSubtree, type CloneSubtreeOptions } from './cloneSubtree.ts'
 import { Directives } from './directives.ts'
 import { NodeCreator } from './NodeCreator.ts'
 
@@ -146,6 +147,41 @@ export class Document<Value extends DocValue = DocValue> {
     copy.value = this.value.clone(copy.schema) as Value
     if (this.range) copy.range = this.range.slice() as Document['range']
     return copy
+  }
+
+  /**
+   * Deep-copy a subtree from `source` into this document, preserving the
+   * subtree's internal anchors and aliases.
+   *
+   * All nodes reachable from `root` (its structural descendants) are copied.
+   * Anchors internal to the subtree are preserved, and renamed
+   * deterministically if they collide with anchors already present in this
+   * document. Aliases are remapped so they point at the copied nodes; a
+   * self-referential node keeps its graph identity instead of expanding
+   * infinitely.
+   *
+   * Aliases that reference anchors outside the subtree are handled according
+   * to the `externalAlias` option:
+   *  - `'reject'` (the default): throw a `ReferenceError` without modifying
+   *    this document at all.
+   *  - `'copy'`: also copy the referenced node (and its subtree) into this
+   *    document, attaching it to this document's root collection so no
+   *    dangling aliases remain.
+   *
+   * The copy is built in isolation and returned; it is not attached to this
+   * document's value until the caller adds it. The source document is never
+   * modified.
+   *
+   * @param source - The document containing the subtree to copy.
+   * @param root - The root node of the subtree within `source`.
+   * @returns The copied subtree, with anchors renamed as needed.
+   */
+  cloneSubtree(
+    source: Document,
+    root: Node,
+    options?: CloneSubtreeOptions
+  ): Node {
+    return cloneSubtree(this, source, root, options)
   }
 
   /**

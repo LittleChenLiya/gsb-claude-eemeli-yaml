@@ -103,6 +103,7 @@ which is expected to always contain a `YAMLMap`, `YAMLSeq`, or `Scalar` value.
 | Method                                     | Returns       | Description                                                                                                                               |
 | ------------------------------------------ | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | clone()                                    | `Document`    | Create a deep copy of this Document and its value. Custom Node values that inherit from `Object` still refer to their original instances. |
+| cloneSubtree(source,&nbsp;root,&nbsp;options?) | `Node`   | Deep-copy a subtree from `source` into this document, preserving internal anchors and aliases. See [Cloning Subtrees](#cloning-subtrees) for more information. |
 | createAlias(node: Node, name?: string)     | `Alias`       | Create a new `Alias` node, adding the required anchor for `node`. If `name` is empty, a new anchor name will be generated.                |
 | createNode(value,&nbsp;options?)           | `Node`        | Recursively wrap any input with appropriate `Node` containers. See [Creating Nodes](#creating-nodes) for more information.                |
 | createPair(key,&nbsp;value,&nbsp;options?) | `Pair`        | Recursively wrap `key` and `value` into a `Pair` object. See [Creating Nodes](#creating-nodes) for more information.                      |
@@ -127,6 +128,49 @@ doc.get('b').at(1) // 4
 
 In addition to the above, the document object also provides the following **accessor methods**:
 `delete`, `get`, `has`, and `set`.
+
+#### Cloning Subtrees
+
+`doc.cloneSubtree(source, root, options?)` deep-copies a subtree from another document into `doc`, preserving the subtree's internal anchors and aliases. The copy is built in isolation and returned; the source document is never modified, and the target document is only modified (when `externalAlias: 'copy'`) after the entire clone succeeds.
+
+- Internal anchors and aliases are copied together. If an anchor collides with one already present in the target document, it is renamed deterministically (using the `anchorPrefix`, default `'a'`), and aliases are remapped to point at the copied nodes.
+- Aliases that reference anchors outside the subtree are handled according to the `externalAlias` option: `'reject'` (the default) throws a `ReferenceError` without modifying the target; `'copy'` also copies the referenced node into the target document's root collection so no dangling aliases remain.
+- Circular references keep their graph identity: a node that refers to itself is copied once, with the alias pointing at the copy, without infinite expansion.
+
+```js
+import { parseDocument } from 'yaml'
+
+const src = parseDocument('items: [&x 1, *x]\n')
+const tgt = parseDocument('other: &x 3\n')
+
+// Clone the `items` subtree from src into tgt. The &x anchor collides with
+// tgt's existing &x, so it is renamed to &a1; the alias *x becomes *a1.
+const items = src.get('items')
+const clone = tgt.cloneSubtree(src, items)
+tgt.set('copied', clone)
+
+tgt.toString()
+// other: &x 3
+// copied: [ &a1 1, *a1 ]
+
+// The alias still resolves to the copied node.
+clone.at(1).resolve(tgt) === clone.at(0) // true
+```
+
+When a subtree contains an alias to an anchor outside the subtree, use `externalAlias: 'copy'` to bring the referenced node along:
+
+```js
+const src = parseDocument('a: &x 1\nb: *x\n')
+const tgt = parseDocument('c: 2\n')
+
+const clone = tgt.cloneSubtree(src, src.get('b'), { externalAlias: 'copy' })
+tgt.set('d', clone)
+
+tgt.toString()
+// c: 2
+// x: &x 1
+// d: *x
+```
 
 #### `Document#toJS()`, `Document#toJSON()` and `Document#toString()`
 
