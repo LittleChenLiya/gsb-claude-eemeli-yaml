@@ -11,6 +11,13 @@
 export { Composer } from './compose/composer.ts'
 
 export { Document, type DocValue } from './doc/Document.ts'
+export {
+  coordinateTagHandles,
+  type CoordinatedDocumentGroup,
+  defaultSecondaryPrefix,
+  TagHandleCoordinationError,
+  type TagHandlePlan
+} from './doc/tagHandles.ts'
 export { Schema } from './schema/Schema.ts'
 
 export { YAMLError, YAMLParseError, YAMLWarning } from './errors.ts'

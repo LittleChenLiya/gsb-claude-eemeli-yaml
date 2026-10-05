@@ -178,3 +178,42 @@ See the section on [custom tags](#writing-custom-tags) for more on this topic.
 
 `doc.directives.yaml` determines if an explicit `%YAML` directive should be included in the output, and what version it should use.
 If changing the version after the document's creation, you'll probably want to use `doc.setSchema()` as it will also update the schema accordingly.
+
+## Coordinating Tag Handles Across Documents
+
+#### `coordinateTagHandles(docs): CoordinatedDocumentGroup`
+
+When documents parsed or created independently are emitted together in one stream, their `%TAG` handle directives may conflict: two documents may bind the same handle (say, `!app!`) to different tag URI prefixes.
+`coordinateTagHandles()` computes an explicit, deterministic coordination plan for such a group of documents and applies it to their directives:
+
+- Documents are inspected in input order. A handle bound to the same prefix everywhere is kept as-is.
+- On conflict, the first binding keeps the handle and each later conflicting document is assigned a fresh handle deterministically: `!app!` becomes `!app2!`, `!app3!`, and so on. Generated handles never collide with any handle used by any of the input documents.
+- Only the directives are rewritten. The resolved tag URIs of the nodes themselves are never modified, and anchors, aliases and comments keep their positions, so re-parsing the coordinated output yields exactly the same tag identities.
+- The standard `!!` handle is never rebound by the coordinator. If any input document illegally binds `!!` to a non-default prefix, a `TagHandleCoordinationError` is thrown and **no** source document is modified -- planning is atomic: the independent document group is only produced when every plan passes.
+- Directives not involved in a conflict keep their original order, and no serialization happens during coordination; custom tag stringifiers are called only when the returned group (or an individual document) is finally stringified, exactly once per node.
+
+<!-- prettier-ignore -->
+```js
+import { coordinateTagHandles, parseDocument } from 'yaml'
+
+const docA = parseDocument('%TAG !app! tag:alpha.example,2026:\n---\n!app!x a\n')
+const docB = parseDocument('%TAG !app! tag:beta.example,2026:\n---\n!app!x b\n')
+
+const group = coordinateTagHandles([docA, docB])
+group.plans[1].renamed // { '!app!': '!app2!' }
+
+// The handle mapping is queryable:
+group.handleFor(1, 'tag:beta.example,2026:') // '!app2!'
+group.prefixFor(1, '!app2!') // 'tag:beta.example,2026:'
+
+String(group)
+> %TAG !app! tag:alpha.example,2026:
+  ---
+  !app!x a
+  ...
+  %TAG !app2! tag:beta.example,2026:
+  ---
+  !app2!x b
+```
+
+The returned `CoordinatedDocumentGroup` contains the coordinated `documents`, their per-document `plans` (each with the full post-coordination `handles` map and the `renamed` handles), the `handleFor(docIndex, prefix)` / `prefixFor(docIndex, handle)` lookups, and a `toString(options)` method which serializes the whole group as a single YAML stream, inserting `---` document start markers and `...` document end markers where needed to keep the stream unambiguous.
