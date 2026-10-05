@@ -21,6 +21,7 @@ import { MergeKey } from '../schema/yaml-1.1/merge.ts'
 import { stringifyDocument } from '../stringify/stringifyDocument.ts'
 import { anchorNames, findNewAnchor } from './anchors.ts'
 import { applyReviver } from './applyReviver.ts'
+import { compareDocuments, type CompareOptions, type DocumentDiff } from './compare.ts'
 import { Directives } from './directives.ts'
 import { NodeCreator } from './NodeCreator.ts'
 
@@ -390,5 +391,19 @@ export class Document<Value extends DocValue = DocValue> {
       throw new Error(`"indent" option must be a positive integer, not ${s}`)
     }
     return stringifyDocument(this, options)
+  }
+
+  /**
+   * Explicitly compare this document with `other`, side by side.
+   *
+   * Distinguishes real value changes from style-only changes (quote style,
+   * comments, flow/block layout). Maps are paired by key identity, sequences by
+   * position; reference-sharing differences (alias reuse vs. independent copies)
+   * are reported separately and cycles are never expanded. Custom tags that
+   * cannot be safely interpreted are marked `unknown` and never count as equal.
+   * Neither document is modified.
+   */
+  compare(other: Document, options?: CompareOptions): DocumentDiff {
+    return compareDocuments(this, other, options)
   }
 }

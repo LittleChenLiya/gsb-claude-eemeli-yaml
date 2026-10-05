@@ -11,6 +11,20 @@
 export { Composer } from './compose/composer.ts'
 
 export { Document, type DocValue } from './doc/Document.ts'
+export {
+  compareDocuments,
+  DocumentDiff,
+  type CompareOptions,
+  type DiffChange,
+  type DiffPath,
+  type RefChange,
+  type RefKind,
+  type RefStatus,
+  type SharedNode,
+  type StyleChange,
+  type UnknownChange,
+  type ValueChange
+} from './doc/compare.ts'
 export { Schema } from './schema/Schema.ts'
 
 export { YAMLError, YAMLParseError, YAMLWarning } from './errors.ts'

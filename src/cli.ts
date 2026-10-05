@@ -8,6 +8,8 @@ import { Parser } from './parse/parser.ts'
 import { Composer } from './compose/composer.ts'
 import { LineCounter } from './parse/line-counter.ts'
 import type { Document } from './doc/Document.ts'
+import { compareDocuments } from './doc/compare.ts'
+import { parseAllDocuments } from './public-api.ts'
 import { prettifyError } from './errors.ts'
 import type { visitor } from './visit.ts'
 import { visit } from './visit.ts'
@@ -22,6 +24,7 @@ Usage:
   yaml cst      Parse the CST of a YAML stream
   yaml lex      Parse the lexical tokens of a YAML stream
   yaml valid    Validate a YAML stream, returning 0 on success
+  yaml diff     Compare two or more documents in a stream
 
 Options:
   --help, -h    Show this message.
@@ -114,6 +117,44 @@ export async function cli(
         }
         if (opt.json) console.log(JSON.stringify(data, null, indent))
         done()
+      })
+      break
+    }
+
+    case 'diff': {
+      const chunks: string[] = []
+      stdin.on('data', chunk => chunks.push(chunk))
+      stdin.on('end', () => {
+        const docs = parseAllDocuments(chunks.join(''), {
+          version: opt.yaml as '1.1' | '1.2' | 'next'
+        })
+        if (!Array.isArray(docs) || docs.length < 2) {
+          return done(
+            new UserError(UserError.ARGS, 'diff requires at least two YAML documents')
+          )
+        }
+        let allEqual = true
+        const reports = docs.slice(1).map((doc, i) => {
+          const diff = compareDocuments(docs[0], doc)
+          if (!diff.equal) allEqual = false
+          return { against: i + 1, diff }
+        })
+        if (opt.json) {
+          console.log(
+            JSON.stringify(
+              reports.map(r => ({ against: r.against, ...r.diff.toJSON() })),
+              null,
+              indent
+            )
+          )
+        } else {
+          for (const r of reports) {
+            console.log(`--- document 0 vs document ${r.against} ---`)
+            console.log(r.diff.toString())
+            console.log()
+          }
+        }
+        done(allEqual ? undefined : new UserError(1, 'documents differ'))
       })
       break
     }
