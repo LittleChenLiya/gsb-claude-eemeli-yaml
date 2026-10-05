@@ -11,6 +11,15 @@
 export { Composer } from './compose/composer.ts'
 
 export { Document, type DocValue } from './doc/Document.ts'
+export { diffDocuments } from './doc/diff.ts'
+export type {
+  DiffChange,
+  DiffKind,
+  DiffPathSegment,
+  DiffStatus,
+  DocumentDiff,
+  RefChange
+} from './doc/diff.ts'
 export { Schema } from './schema/Schema.ts'
 
 export { YAMLError, YAMLParseError, YAMLWarning } from './errors.ts'

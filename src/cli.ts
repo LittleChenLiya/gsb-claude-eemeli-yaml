@@ -6,6 +6,7 @@ import { prettyToken } from './parse/cst.ts'
 import { lex } from './parse/lexer.ts'
 import { Parser } from './parse/parser.ts'
 import { Composer } from './compose/composer.ts'
+import { diffDocuments } from './doc/diff.ts'
 import { LineCounter } from './parse/line-counter.ts'
 import type { Document } from './doc/Document.ts'
 import { prettifyError } from './errors.ts'
@@ -20,6 +21,7 @@ Reads stdin and writes output to stdout and errors & warnings to stderr.
 Usage:
   yaml          Process a YAML stream, outputting it as YAML
   yaml cst      Parse the CST of a YAML stream
+  yaml diff     Compare the first two documents of a YAML stream
   yaml lex      Parse the lexical tokens of a YAML stream
   yaml valid    Validate a YAML stream, returning 0 on success
 
@@ -39,12 +41,21 @@ Additional options for bare "yaml" command:
 export class UserError extends Error {
   static ARGS = 2
   static SINGLE = 3
+  static DIFF = 1
   code: number
   constructor(code: number, message: string) {
     super(`Error: ${message}`)
     this.code = code
   }
 }
+
+const formatPath = (path: ReadonlyArray<string | number>): string =>
+  path.length === 0
+    ? '(root)'
+    : path
+        .map(seg => (typeof seg === 'number' ? `[${seg}]` : `.${seg}`))
+        .join('')
+        .replace(/^\./, '')
 
 export async function cli(
   stdin: NodeJS.ReadableStream,
@@ -114,6 +125,58 @@ export async function cli(
         }
         if (opt.json) console.log(JSON.stringify(data, null, indent))
         done()
+      })
+      break
+    }
+
+    case 'diff': {
+      let source = ''
+      stdin.on('data', chunk => (source += chunk))
+      stdin.on('end', () => {
+        const lineCounter = new LineCounter()
+        // @ts-expect-error Version is validated at runtime
+        const composer = new Composer({ version: opt.yaml, merge: opt.merge })
+        const parser = new Parser(lineCounter.addNewLine)
+        for (const tok of parser.parse(source)) composer.next(tok)
+        const docs = Array.from(composer.end(false))
+        for (const doc of docs) {
+          for (const error of doc.errors) {
+            prettifyError(source, lineCounter)(error)
+            if (opt.strict) return done(error)
+            console.error(error)
+          }
+          for (const warning of doc.warnings) {
+            prettifyError(source, lineCounter)(warning)
+            console.error(warning)
+          }
+        }
+        if (docs.length !== 2) {
+          const msg = `The diff command requires exactly two documents, got ${docs.length}`
+          return done(new UserError(UserError.ARGS, msg))
+        }
+        const diff = diffDocuments(docs[0], docs[1])
+        if (opt.json) {
+          console.log(JSON.stringify(diff, null, indent || 2))
+        } else {
+          console.log(`status: ${diff.status}`)
+          for (const c of diff.changes) {
+            const sides =
+              c.a !== undefined || c.b !== undefined
+                ? ` (${c.a ?? '∅'} → ${c.b ?? '∅'})`
+                : ''
+            console.log(`${c.kind} ${formatPath(c.path)}: ${c.message}${sides}`)
+          }
+          for (const r of diff.refs) {
+            console.log(
+              `ref ${formatPath(r.path)}: ${r.message} (${r.a} vs ${r.b})`
+            )
+          }
+        }
+        if (diff.equal) done()
+        else
+          done(
+            new UserError(UserError.DIFF, `Documents differ (${diff.status})`)
+          )
       })
       break
     }

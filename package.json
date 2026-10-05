@@ -41,6 +41,7 @@
     "test:dist:types": "tsc --ignoreConfig --allowJs --moduleResolution bundler --noEmit --target es2015 dist/cli.js dist/index.js dist/test-events.js dist/util.js",
     "test:types": "tsc --noEmit && tsc --noEmit -p tests/tsconfig.json",
     "docs:install": "cd docs-slate && bundle install",
+    "example:diff": "node examples/diff-three-docs.mjs",
     "predocs:deploy": "node docs/prepare-docs.js",
     "docs:deploy": "cd docs-slate && ./deploy.sh",
     "predocs": "node docs/prepare-docs.js",
