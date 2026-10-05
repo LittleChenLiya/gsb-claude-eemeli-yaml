@@ -10,6 +10,8 @@
 
 export { Composer } from './compose/composer.ts'
 
+export { cloneNodeAcrossDocuments } from './doc/cloneNodeAcrossDocuments.ts'
+export type { CloneNodeAcrossDocumentsOptions } from './doc/cloneNodeAcrossDocuments.ts'
 export { Document, type DocValue } from './doc/Document.ts'
 export { Schema } from './schema/Schema.ts'
 

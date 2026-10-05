@@ -229,6 +229,37 @@ If `name` is undefined, the generated anchor will use 'a' as a prefix.
 
 You should make sure to only add alias nodes to the document after the nodes to which they refer, or the document's YAML stringification will fail.
 
+#### `YAML.cloneNodeAcrossDocuments(target, source, node, options?): Node`
+
+```js
+import { cloneNodeAcrossDocuments, parseDocument } from 'yaml'
+
+const src = parseDocument('item:\n  def: &x [1, 2]\n  ref: *x\n')
+const tgt = parseDocument('mine: &x old\n')
+
+const cloned = cloneNodeAcrossDocuments(tgt, src, src.get('item'))
+tgt.set('imported', cloned) // only runs if the clone fully succeeded
+
+String(tgt)
+// mine: &x old
+// imported:
+//   def: &x1 [ 1, 2 ]
+//   ref: *x1
+```
+
+Deep-clone `node`, a subtree of the `source` document, so that the clone may be added to `target`, a different document.
+Anchors and aliases within the subtree are cloned along with it;
+if an anchor name is already in use in `target`, the cloned anchor is deterministically renamed (`x` → `x1`, `x2`, …) and all aliases within the cloned subtree are updated to match.
+Comments, tags and other node properties are preserved, and cyclic or shared node references keep their graph identity rather than being expanded.
+
+Aliases that refer to anchors outside the cloned subtree are handled according to the `options.externalAliases` option:
+
+- `'error'` (default): Throw an error.
+- `'copy'`: Copy the referenced node along with the subtree, replacing the first such alias with the copied node, so that no dangling references are left behind.
+
+Neither document is modified by this function, so the target document can only gain the new node after the complete clone has succeeded;
+if cloning fails (e.g. on a rejected external alias), both documents are left exactly as they were.
+
 <h4 style="clear:both"><code>new YAMLMap(), new YAMLSeq(), doc.createPair(key, value): Pair</code></h4>
 
 ```js
